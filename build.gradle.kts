@@ -7,21 +7,24 @@ buildscript {
     extra["repo"] = "https://repo.gradle.org/gradle/repo"
 
     repositories {
+        jcenter()
         maven { setUrl(extra["repo"]) }
     }
 
     dependencies {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${extra["kotlinVersion"]}")
+        classpath("com.github.jengelman.gradle.plugins:shadow:1.2.3")
     }
 }
 
 apply {
     plugin("kotlin")
+    plugin("com.github.johnrengelman.shadow")
     plugin<ApplicationPlugin>()
 }
 
 configure<ApplicationPluginConvention> {
-    mainClassName = "samples.HelloWorldKt"
+    mainClassName = "com.github.morj.wobot.MainKt"
 }
 
 repositories {
