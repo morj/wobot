@@ -36,4 +36,5 @@ dependencies {
     compile("com.kennycason:kumo:${extra["kumoVersion"]}")
     compile("com.ullink.slack:simpleslackapi:0.5.1")
     compile("org.apache.httpcomponents:httpmime:4.4")
+    compile("org.languagetool:language-ru:2.5")
 }

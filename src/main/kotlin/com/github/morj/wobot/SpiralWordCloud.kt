@@ -3,10 +3,14 @@ package com.github.morj.wobot
 import com.kennycason.kumo.CollisionMode
 import com.kennycason.kumo.WordCloud
 import com.kennycason.kumo.WordFrequency
+import org.slf4j.LoggerFactory
 import java.awt.Dimension
 import java.util.*
 
 class SpiralWordCloud(dimension: Dimension) : WordCloud(dimension, CollisionMode.RECTANGLE) {
+    companion object {
+        val LOGGER = LoggerFactory.getLogger(SpiralWordCloud::class.java)
+    }
 
     init {
         setWordPlacer(SpiralWordPlacer(dimension))
