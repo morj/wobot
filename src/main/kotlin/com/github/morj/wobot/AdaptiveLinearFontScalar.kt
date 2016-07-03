@@ -7,8 +7,8 @@ val MAX_MULTIPLIER = 300.toFloat()
 
 class AdaptiveLinearFontScalar(val minFreq: Int,
                                val maxFreq: Int,
-                               fraction: Float,
-                               val minFontSize: Float, maxFontSize: Float) : FontScalar {
+                               val params: FontParams,
+                               maxFontSize: Float) : FontScalar {
     companion object {
         val LOGGER = LoggerFactory.getLogger(AdaptiveLinearFontScalar::class.java)
     }
@@ -16,7 +16,7 @@ class AdaptiveLinearFontScalar(val minFreq: Int,
     val fontMultiplier: Float
 
     init {
-        val multiplier = (maxFontSize - minFontSize) / fraction
+        val multiplier = (maxFontSize - params.minFontSize) / params.fraction
         fontMultiplier = if (multiplier > MAX_MULTIPLIER) {
             if (LOGGER.isWarnEnabled) {
                 LOGGER.warn("Decreasing multiplier from $multiplier to $MAX_MULTIPLIER")
@@ -28,6 +28,6 @@ class AdaptiveLinearFontScalar(val minFreq: Int,
     }
 
     override fun scale(freq: Int, minValue: Int, maxValue: Int): Float {
-        return ((freq - minFreq) * fontMultiplier / (maxFreq - minFreq)) + minFontSize
+        return ((freq - minFreq) * fontMultiplier / (maxFreq - minFreq)) + params.minFontSize
     }
 }

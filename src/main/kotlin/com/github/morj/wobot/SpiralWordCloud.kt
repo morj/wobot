@@ -24,32 +24,24 @@ class SpiralWordCloud(dimension: Dimension) : WordCloud(dimension, CollisionMode
         val minFreq = wordFrequencies.minBy { it.frequency }?.frequency ?: 0
         val maxFreq = wordFrequencies.maxBy { it.frequency }?.frequency ?: 0
         val top = wordFrequencies.maxBy { (it.frequency - minFreq) * it.word.length } ?: return // empty input
-        val minFontSize = 11.toFloat()
-        val maxWeight = (top.frequency - minFreq).toFloat() * top.word.length / (maxFreq - minFreq)
         val graphics = bufferedImage.graphics
         val fontMetrics = graphics.getFontMetrics(kumoFont.font)
+        val maxWeight = (top.frequency - minFreq).toFloat() * top.word.length / (maxFreq - minFreq)
         val areaPerLetter = fontMetrics.stringWidth("x").toFloat()
         val magic = kumoFont.font.size / (maxWeight * areaPerLetter / dimension.width)
-        val maxFontSize = Math.max(minFontSize * 2.7.toFloat(), magic)
-        val length = wordFrequencies.size
-        val fraction = if (length > 100) {
-            2.5.toFloat()
-        } else if (length > 75) {
-            2.0.toFloat()
-        } else {
-            1.5.toFloat()
-        }
-        setFontScalar(AdaptiveLinearFontScalar(minFreq, maxFreq, fraction, minFontSize, maxFontSize))
+        val params = FontParams(wordFrequencies.size)
+        val maxFontSize = Math.max(params.minFontSize * 2.7.toFloat(), magic)
+        setFontScalar(AdaptiveLinearFontScalar(minFreq, maxFreq, params, maxFontSize))
         for (word in buildWords(wordFrequencies, colorPalette)) {
             val placed = wordPlacer.place(word)
             if (placed) {
                 graphics.drawImage(word.bufferedImage, word.position.x, word.position.y, null)
                 if (LOGGER.isDebugEnabled) {
-                    LOGGER.debug("placed: " + word.word + " (" + currentWord + "/" + length + ")")
+                    LOGGER.debug("placed: " + word.word + " (" + currentWord + "/" + wordFrequencies.size + ")")
                 }
             } else {
                 if (LOGGER.isDebugEnabled) {
-                    LOGGER.debug("skipped: " + word.word + " (" + currentWord + "/" + length + ")")
+                    LOGGER.debug("skipped: " + word.word + " (" + currentWord + "/" + wordFrequencies.size + ")")
                 }
                 skipped.add(word)
             }
@@ -57,4 +49,17 @@ class SpiralWordCloud(dimension: Dimension) : WordCloud(dimension, CollisionMode
         }
         drawForegroundToBackground()
     }
+}
+
+data class FontParams(val fraction: Float, val minFontSize: Int) {
+
+    constructor(pair: Pair<Double, Int>) : this(pair.first.toFloat(), pair.second)
+
+    constructor(length: Int) : this(if (length > 100) {
+        2.5 to 11
+    } else if (length > 75) {
+        2.0 to 17
+    } else {
+        1.5 to 21
+    })
 }

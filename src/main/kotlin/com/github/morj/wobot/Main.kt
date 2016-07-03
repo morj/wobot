@@ -9,7 +9,7 @@ import com.kennycason.kumo.palette.ColorPalette
 import com.ullink.slack.simpleslackapi.events.SlackMessagePosted
 import com.ullink.slack.simpleslackapi.impl.ChannelHistoryModuleFactory
 import com.ullink.slack.simpleslackapi.impl.SlackSessionFactory
-import org.languagetool.language.Russian
+import org.languagetool.Language
 import org.slf4j.LoggerFactory
 import org.threeten.bp.LocalDate
 import java.awt.Color
@@ -18,13 +18,11 @@ import java.awt.Font
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 
-val TOKEN = System.getProperty("bot.token")
+class Wobot(val token: String, val language: Language) {
+    companion object {
+        val logger = LoggerFactory.getLogger(Wobot::class.java)
+    }
 
-val RUSSIAN = Russian()
-
-val LOGGER = LoggerFactory.getLogger(Wobot::class.java)
-
-class Wobot(token: String) {
     val session = SlackSessionFactory.createWebSocketSlackSession(token)
     val historyGetter = ChannelHistoryModuleFactory.createChannelHistoryModule(session)
     val id: String
@@ -38,11 +36,11 @@ class Wobot(token: String) {
 
     fun parseCommand(posted: SlackMessagePosted): () -> Any {
         val msg = posted.messageContent.substring(startIndex = me.length)
-        LOGGER.debug(msg)
+        logger.debug(msg)
         // session.sendMessage(posted.channel, "Morj wrote: \n> ${posted.messageContent}", null)
-        val tokens = RUSSIAN.wordTokenizer.tokenize(msg).filter { it.length > 2 }.toSet()
-        if (LOGGER.isDebugEnabled) {
-            LOGGER.debug(tokens.fold(StringBuilder("Normalized command:")) { sb, s ->
+        val tokens = language.wordTokenizer.tokenize(msg).filter { it.length > 2 }.toSet()
+        if (logger.isDebugEnabled) {
+            logger.debug(tokens.fold(StringBuilder("Normalized command:")) { sb, s ->
                 sb.append(' ').append(s)
             }.toString())
         }
@@ -57,7 +55,7 @@ class Wobot(token: String) {
     }
 
     fun List<SlackMessagePosted>.query(): StringBuilder {
-        LOGGER.info("Finished fetching history")
+        logger.info("Finished fetching history")
         val text = filter {
             /*it.timestamp != "" &&*/ !it.messageContent.startsWith(me)
         }.fold(StringBuilder()) { sb, msg ->
@@ -68,36 +66,36 @@ class Wobot(token: String) {
 }
 
 fun main(args: Array<String>) {
-    val wobot = Wobot(TOKEN)
+    val wobot = Wobot(System.getProperty("bot.token"), lang(System.getProperty("bot.cloud.lang", "en")))
     wobot.session.addMessagePostedListener { posted, session ->
         if (posted.messageContent.startsWith(wobot.me)) {
-            LOGGER.info("Start processing")
+            Wobot.logger.info("Start processing")
             val command = wobot.parseCommand(posted)
             try {
                 val text = command()
                 val os = PipedOutputStream()
-                val wordCloud = wc(listOf(text.toString()))
+                val wordCloud = wc(wobot.language, listOf(text.toString()))
                 Thread {
                     try {
                         wordCloud.writeToStreamAsPNG(os)
                         os.close()
                     } catch (t: Throwable) {
-                        LOGGER.error("Cannot write image", t)
+                        Wobot.logger.error("Cannot write image", t)
                     }
                 }.start()
-                sendFile(PipedInputStream(os), posted.channel, TOKEN)
+                sendFile(PipedInputStream(os), posted.channel, wobot.token)
             } catch (t: Throwable) {
-                LOGGER.error("Cannot prepare image", t)
+                Wobot.logger.error("Cannot prepare image", t)
             }
         }
     }
 }
 
 
-fun wc(input: List<String>): WordCloud {
+fun wc(language: Language, input: List<String>): WordCloud {
     val frequencyAnalyzer = FrequencyAnalyzer().apply {
         setWordTokenizer {
-            RUSSIAN.wordTokenizer.tokenize(it)
+            language.wordTokenizer.tokenize(it)
         }
         setWordFrequenciesToReturn(160)
         setMinWordLength(4)

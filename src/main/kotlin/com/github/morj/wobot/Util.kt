@@ -9,6 +9,8 @@ import org.apache.http.entity.mime.MultipartEntityBuilder
 import org.apache.http.entity.mime.content.InputStreamBody
 import org.apache.http.entity.mime.content.StringBody
 import org.apache.http.impl.client.HttpClientBuilder
+import org.languagetool.Language
+import org.languagetool.language.English
 import java.awt.Point
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -26,6 +28,22 @@ fun sumAtLeast(tolerance: Int, vararg f: () -> Int): Int {
 
 operator fun Point.div(other: Int): Point = Point(x / other, y / other)
 
+fun lang(id: String = "en"): Language {
+    Language.REAL_LANGUAGES.forEach {
+        if (it.shortName == id && it.hasVariant()) {
+            if (it.defaultLanguageVariant != null) {
+                return it.defaultLanguageVariant
+            }
+        }
+    }
+    Language.REAL_LANGUAGES.forEach {
+        if (it.shortName == id && !it.hasVariant()) {
+            return it
+        }
+    }
+    throw IllegalArgumentException("Language id $id is not available")
+}
+
 fun sendFile(stream: InputStream, channel: SlackChannel, token: String) {
     try {
         val client = HttpClientBuilder.create().build()
@@ -35,20 +53,20 @@ fun sendFile(stream: InputStream, channel: SlackChannel, token: String) {
             addPart("channels", StringBody(channel.id, ContentType.MULTIPART_FORM_DATA))
             addPart("token", StringBody(token, ContentType.MULTIPART_FORM_DATA))
         }.build()
-        LOGGER.info("Post file to channel ${channel.id}")
+        Wobot.logger.info("Post file to channel ${channel.id}")
         post.entity = entity
         val result = client.execute(post)
         val json = CharStreams.toString(InputStreamReader(result.entity.content))
-        LOGGER.info(json)
+        Wobot.logger.info(json)
     } catch (t: Throwable) {
-        LOGGER.error("Cannot attach file", t)
+        Wobot.logger.error("Cannot attach file", t)
     }
 }
 
 fun data(path: String) = InputStreamReader(Wobot::class.java.getResourceAsStream("$path.txt")).readLines()
 
 fun test(input: List<String>, path: String): WordCloud {
-    return wc(input).apply {
+    return wc(English(), input).apply {
         writeToFile("$path.png")
     }
 }
