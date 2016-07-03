@@ -27,6 +27,7 @@ class Wobot(val token: String, val language: Language) {
     val historyGetter = ChannelHistoryModuleFactory.createChannelHistoryModule(session)
     val id: String
     val me: String
+    val mention = Regex("(<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>)|(@here)|(@channel)")
 
     init {
         session.connect()
@@ -56,12 +57,14 @@ class Wobot(val token: String, val language: Language) {
 
     fun List<SlackMessagePosted>.query(): StringBuilder {
         logger.info("Finished fetching history")
-        val text = filter {
-            /*it.timestamp != "" &&*/ !it.messageContent.startsWith(me)
-        }.fold(StringBuilder()) { sb, msg ->
-            sb.append(' ').append(msg.messageContent)
+        val text = fold(StringBuilder()) { sb, msg ->
+            sb.append(' ').append(removeMention(msg))
         }
         return text
+    }
+
+    fun removeMention(msg: SlackMessagePosted): String {
+        return msg.messageContent.replaceFirst(mention, "")
     }
 }
 
