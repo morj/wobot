@@ -101,7 +101,7 @@ fun wc(language: Language, input: List<String>): WordCloud {
             language.wordTokenizer.tokenize(it)
         }
         setWordFrequenciesToReturn(160)
-        setMinWordLength(4)
+        setMinWordLength(3)
         setStopWords(listOf("this"))
     }
     val wordFrequencies = frequencyAnalyzer.load(input)
