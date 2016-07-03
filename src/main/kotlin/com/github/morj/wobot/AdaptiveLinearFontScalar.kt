@@ -3,10 +3,11 @@ package com.github.morj.wobot
 import com.kennycason.kumo.font.scale.FontScalar
 import org.slf4j.LoggerFactory
 
-val MAX_MULTIPLIER = 200.toFloat()
+val MAX_MULTIPLIER = 300.toFloat()
 
 class AdaptiveLinearFontScalar(val minFreq: Int,
                                val maxFreq: Int,
+                               fraction: Float,
                                val minFontSize: Float, maxFontSize: Float) : FontScalar {
     companion object {
         val LOGGER = LoggerFactory.getLogger(AdaptiveLinearFontScalar::class.java)
@@ -15,7 +16,7 @@ class AdaptiveLinearFontScalar(val minFreq: Int,
     val fontMultiplier: Float
 
     init {
-        val multiplier = (maxFontSize - minFontSize) / 2.5.toFloat()
+        val multiplier = (maxFontSize - minFontSize) / fraction
         fontMultiplier = if (multiplier > MAX_MULTIPLIER) {
             if (LOGGER.isWarnEnabled) {
                 LOGGER.warn("Decreasing multiplier from $multiplier to $MAX_MULTIPLIER")

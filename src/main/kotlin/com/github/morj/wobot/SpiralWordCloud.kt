@@ -31,18 +31,25 @@ class SpiralWordCloud(dimension: Dimension) : WordCloud(dimension, CollisionMode
         val areaPerLetter = fontMetrics.stringWidth("x").toFloat()
         val magic = kumoFont.font.size / (maxWeight * areaPerLetter / dimension.width)
         val maxFontSize = Math.max(minFontSize * 2.7.toFloat(), magic)
-        setFontScalar(AdaptiveLinearFontScalar(minFreq, maxFreq, minFontSize, maxFontSize))
+        val length = wordFrequencies.size
+        val fraction = if (length > 100) {
+            2.5.toFloat()
+        } else if (length > 75) {
+            2.0.toFloat()
+        } else {
+            1.5.toFloat()
+        }
+        setFontScalar(AdaptiveLinearFontScalar(minFreq, maxFreq, fraction, minFontSize, maxFontSize))
         for (word in buildWords(wordFrequencies, colorPalette)) {
             val placed = wordPlacer.place(word)
-
             if (placed) {
                 graphics.drawImage(word.bufferedImage, word.position.x, word.position.y, null)
                 if (LOGGER.isDebugEnabled) {
-                    LOGGER.debug("placed: " + word.word + " (" + currentWord + "/" + wordFrequencies.size + ")")
+                    LOGGER.debug("placed: " + word.word + " (" + currentWord + "/" + length + ")")
                 }
             } else {
                 if (LOGGER.isDebugEnabled) {
-                    LOGGER.debug("skipped: " + word.word + " (" + currentWord + "/" + wordFrequencies.size + ")")
+                    LOGGER.debug("skipped: " + word.word + " (" + currentWord + "/" + length + ")")
                 }
                 skipped.add(word)
             }

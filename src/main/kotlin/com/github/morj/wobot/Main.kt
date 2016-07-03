@@ -6,17 +6,17 @@ import com.kennycason.kumo.font.KumoFont
 import com.kennycason.kumo.image.AngleGenerator
 import com.kennycason.kumo.nlp.FrequencyAnalyzer
 import com.kennycason.kumo.palette.ColorPalette
+import com.ullink.slack.simpleslackapi.events.SlackMessagePosted
 import com.ullink.slack.simpleslackapi.impl.ChannelHistoryModuleFactory
 import com.ullink.slack.simpleslackapi.impl.SlackSessionFactory
 import org.languagetool.language.Russian
 import org.slf4j.LoggerFactory
+import org.threeten.bp.LocalDate
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
-
-class Wobot() // handle
 
 val TOKEN = System.getProperty("bot.token")
 
@@ -24,24 +24,57 @@ val RUSSIAN = Russian()
 
 val LOGGER = LoggerFactory.getLogger(Wobot::class.java)
 
-fun main(args: Array<String>) {
-    val session = SlackSessionFactory.createWebSocketSlackSession(TOKEN)
-    session.connect()
-    val id = session.sessionPersona().id
-    val magic = "<@$id>"
+class Wobot(token: String) {
+    val session = SlackSessionFactory.createWebSocketSlackSession(token)
     val historyGetter = ChannelHistoryModuleFactory.createChannelHistoryModule(session)
-    session.addMessagePostedListener { posted, session ->
-        if (posted.messageContent.startsWith(magic)) {
+    val id: String
+    val me: String
+
+    init {
+        session.connect()
+        id = session.sessionPersona().id
+        me = "<@$id>"
+    }
+
+    fun parseCommand(posted: SlackMessagePosted): () -> Any {
+        val msg = posted.messageContent.substring(startIndex = me.length)
+        LOGGER.debug(msg)
+        // session.sendMessage(posted.channel, "Morj wrote: \n> ${posted.messageContent}", null)
+        val tokens = RUSSIAN.wordTokenizer.tokenize(msg).filter { it.length > 2 }.toSet()
+        if (LOGGER.isDebugEnabled) {
+            LOGGER.debug(tokens.fold(StringBuilder("Normalized command:")) { sb, s ->
+                sb.append(' ').append(s)
+            }.toString())
+        }
+        if (tokens.contains("today") || tokens.contains("сегодня")) {
+            return {
+                historyGetter.fetchHistoryOfChannel(posted.channel.id, LocalDate.now()).query()
+            }
+        }
+        return {
+            historyGetter.fetchHistoryOfChannel(posted.channel.id, 1000).query()
+        }
+    }
+
+    fun List<SlackMessagePosted>.query(): StringBuilder {
+        LOGGER.info("Finished fetching history")
+        val text = filter {
+            /*it.timestamp != "" &&*/ !it.messageContent.startsWith(me)
+        }.fold(StringBuilder()) { sb, msg ->
+            sb.append(' ').append(msg.messageContent)
+        }
+        return text
+    }
+}
+
+fun main(args: Array<String>) {
+    val wobot = Wobot(TOKEN)
+    wobot.session.addMessagePostedListener { posted, session ->
+        if (posted.messageContent.startsWith(wobot.me)) {
             LOGGER.info("Start processing")
-            // session.sendMessage(posted.channel, "Morj wrote: \n> ${posted.messageContent}", null)
+            val command = wobot.parseCommand(posted)
             try {
-                val messages = historyGetter.fetchHistoryOfChannel(posted.channel.id, 100)
-                LOGGER.info("Finished fetching history")
-                val text = messages.filter {
-                    it.timestamp != posted.timestamp && !it.messageContent.startsWith(magic)
-                }.fold(StringBuilder()) { sb, msg ->
-                    sb.append(' ').append(msg.messageContent)
-                }
+                val text = command()
                 val os = PipedOutputStream()
                 val wordCloud = wc(listOf(text.toString()))
                 Thread {
