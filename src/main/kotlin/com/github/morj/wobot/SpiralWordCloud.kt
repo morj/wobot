@@ -26,7 +26,7 @@ class SpiralWordCloud(dimension: Dimension) : WordCloud(dimension, CollisionMode
         val top = wordFrequencies.maxBy { (it.frequency - minFreq) * it.word.length } ?: return // empty input
         val graphics = bufferedImage.graphics
         val fontMetrics = graphics.getFontMetrics(kumoFont.font)
-        val maxWeight = (top.frequency - minFreq).toFloat() * top.word.length / (maxFreq - minFreq)
+        val maxWeight = (top.frequency - minFreq).toFloat() * top.word.length / Math.max(maxFreq - minFreq, 1)
         val areaPerLetter = fontMetrics.stringWidth("x").toFloat()
         val magic = kumoFont.font.size / (maxWeight * areaPerLetter / dimension.width)
         val params = FontParams(wordFrequencies.size)

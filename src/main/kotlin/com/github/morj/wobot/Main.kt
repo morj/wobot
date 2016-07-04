@@ -27,7 +27,7 @@ class Wobot(val token: String, val language: Language) {
     val historyGetter = ChannelHistoryModuleFactory.createChannelHistoryModule(session)
     val id: String
     val me: String
-    val mention = Regex("(<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>)|(@here)|(@channel)")
+    val special = Regex("(<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>)|(@channel)|(@group)|(@here)|(@everyone)|(&lt;)|(&gt;)|(&amp;)")
 
     init {
         session.connect()
@@ -35,7 +35,7 @@ class Wobot(val token: String, val language: Language) {
         me = "<@$id>"
     }
 
-    fun parseCommand(posted: SlackMessagePosted): () -> Any {
+    fun parseCommand(posted: SlackMessagePosted): BotCommand {
         val msg = posted.messageContent.substring(startIndex = me.length)
         logger.debug(msg)
         // session.sendMessage(posted.channel, "Morj wrote: \n> ${posted.messageContent}", null)
@@ -46,11 +46,12 @@ class Wobot(val token: String, val language: Language) {
             }.toString())
         }
         if (tokens.contains("today") || tokens.contains("сегодня")) {
-            return {
+            return HistoryToImageCommand(posted) {
                 historyGetter.fetchHistoryOfChannel(posted.channel.id, LocalDate.now()).query()
             }
         }
-        return {
+        // default command
+        return HistoryToImageCommand(posted) {
             historyGetter.fetchHistoryOfChannel(posted.channel.id, 1000).query()
         }
     }
@@ -64,36 +65,64 @@ class Wobot(val token: String, val language: Language) {
     }
 
     fun removeMention(msg: SlackMessagePosted): String {
-        return msg.messageContent.replaceFirst(mention, "")
+        return msg.messageContent.replace(special, "")
     }
 }
 
-fun main(args: Array<String>) {
-    val wobot = Wobot(System.getProperty("bot.token"), lang(System.getProperty("bot.cloud.lang", "en")))
-    wobot.session.addMessagePostedListener { posted, session ->
-        if (posted.messageContent.startsWith(wobot.me)) {
-            Wobot.logger.info("Start processing")
-            val command = wobot.parseCommand(posted)
-            try {
-                val text = command()
-                val os = PipedOutputStream()
-                val wordCloud = wc(wobot.language, listOf(text.toString()))
-                Thread {
-                    try {
-                        wordCloud.writeToStreamAsPNG(os)
-                        os.close()
-                    } catch (t: Throwable) {
-                        Wobot.logger.error("Cannot write image", t)
-                    }
-                }.start()
-                sendFile(PipedInputStream(os), posted.channel, wobot.token)
-            } catch (t: Throwable) {
-                Wobot.logger.error("Cannot prepare image", t)
-            }
+interface BotCommand {
+    enum class Type {
+        HISTORY_TO_IMAGE,
+        MISC
+    }
+
+    val type: Type
+    operator fun invoke(wobot: Wobot)
+}
+
+class HistoryToImageCommand(val source: SlackMessagePosted, val action: () -> Any) : BotCommand {
+    override val type: BotCommand.Type
+        get() = BotCommand.Type.HISTORY_TO_IMAGE
+
+    override fun invoke(wobot: Wobot) {
+        try {
+            val text = action()
+            val os = PipedOutputStream()
+            val wordCloud = wc(wobot.language, listOf(text.toString()))
+            Thread {
+                try {
+                    wordCloud.writeToStreamAsPNG(os)
+                    os.close()
+                } catch (t: Throwable) {
+                    Wobot.logger.error("Cannot write image", t)
+                }
+            }.start()
+            sendFile(PipedInputStream(os), source.channel, wobot.token)
+        } catch (t: Throwable) {
+            Wobot.logger.error("Cannot prepare image", t)
         }
     }
 }
 
+/*
+class TypingEventComand(val source: SlackMessagePosted) : BotCommand {
+    override val type: BotCommand.Type
+        get() = BotCommand.Type.MISC
+
+    override fun invoke(wobot: Wobot) {
+    }
+}
+*/
+
+fun main(args: Array<String>) {
+    Wobot(System.getProperty("bot.token"), lang(System.getProperty("bot.cloud.lang", "en"))).apply {
+        session.addMessagePostedListener { posted, session ->
+            if (posted.messageContent.startsWith(me)) {
+                Wobot.logger.info("Start processing message: ${posted.timestamp}")
+                parseCommand(posted)(this)
+            }
+        }
+    }
+}
 
 fun wc(language: Language, input: List<String>): WordCloud {
     val frequencyAnalyzer = FrequencyAnalyzer().apply {

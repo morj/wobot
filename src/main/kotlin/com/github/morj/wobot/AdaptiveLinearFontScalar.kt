@@ -28,6 +28,7 @@ class AdaptiveLinearFontScalar(val minFreq: Int,
     }
 
     override fun scale(freq: Int, minValue: Int, maxValue: Int): Float {
-        return ((freq - minFreq) * fontMultiplier / (maxFreq - minFreq)) + params.minFontSize
+        val denominator = Math.max(1, maxFreq - minFreq)
+        return ((freq - minFreq) * fontMultiplier / denominator) + params.minFontSize
     }
 }
