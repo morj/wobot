@@ -45,13 +45,18 @@ class Wobot(val token: String, val language: Language) {
                 sb.append(' ').append(s)
             }.toString())
         }
+        val minWordSize = if (tokens.contains("longer") || tokens.contains("пространно")) {
+            4
+        } else {
+            3
+        }
         if (tokens.contains("today") || tokens.contains("сегодня")) {
-            return HistoryToImageCommand(posted) {
+            return HistoryToImageCommand(posted, minWordSize) {
                 historyGetter.fetchHistoryOfChannel(posted.channel.id, LocalDate.now()).query()
             }
         }
         // default command
-        return HistoryToImageCommand(posted) {
+        return HistoryToImageCommand(posted, minWordSize) {
             historyGetter.fetchHistoryOfChannel(posted.channel.id, 1000).query()
         }
     }
@@ -79,7 +84,7 @@ interface BotCommand {
     operator fun invoke(wobot: Wobot)
 }
 
-class HistoryToImageCommand(val source: SlackMessagePosted, val action: () -> Any) : BotCommand {
+class HistoryToImageCommand(val source: SlackMessagePosted, val minWordSize: Int, val action: () -> Any) : BotCommand {
     override val type: BotCommand.Type
         get() = BotCommand.Type.HISTORY_TO_IMAGE
 
@@ -87,7 +92,7 @@ class HistoryToImageCommand(val source: SlackMessagePosted, val action: () -> An
         try {
             val text = action()
             val os = PipedOutputStream()
-            val wordCloud = wc(wobot.language, listOf(text.toString()))
+            val wordCloud = wc(wobot.language, minWordSize, listOf(text.toString()))
             Thread {
                 try {
                     wordCloud.writeToStreamAsPNG(os)
@@ -124,13 +129,13 @@ fun main(args: Array<String>) {
     }
 }
 
-fun wc(language: Language, input: List<String>): WordCloud {
+fun wc(language: Language, minWordSize: Int, input: List<String>): WordCloud {
     val frequencyAnalyzer = FrequencyAnalyzer().apply {
         setWordTokenizer {
             language.wordTokenizer.tokenize(it)
         }
         setWordFrequenciesToReturn(160)
-        setMinWordLength(3)
+        setMinWordLength(minWordSize)
         setStopWords(listOf("this"))
     }
     val wordFrequencies = frequencyAnalyzer.load(input)

@@ -66,7 +66,7 @@ fun sendFile(stream: InputStream, channel: SlackChannel, token: String) {
 fun data(path: String) = InputStreamReader(Wobot::class.java.getResourceAsStream("$path.txt")).readLines()
 
 fun test(input: List<String>, path: String): WordCloud {
-    return wc(English(), input).apply {
+    return wc(English(), 3, input).apply {
         writeToFile("$path.png")
     }
 }
