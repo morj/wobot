@@ -28,6 +28,7 @@ class Wobot(val token: String, val language: Language) {
     val id: String
     val me: String
     val special = Regex("(<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>)|(@channel)|(@group)|(@here)|(@everyone)|(&lt;)|(&gt;)|(&amp;)")
+    val mention = Regex("<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>")
 
     init {
         session.connect()
@@ -50,21 +51,38 @@ class Wobot(val token: String, val language: Language) {
         } else {
             3
         }
+        val set = hashSetOf<String>()
+        mention.find(msg)?.groups?.forEach {
+            val value = it?.value // TODO: use pre/post match in regex instead
+            if (value != null && value.startsWith("<@") && value.endsWith(">")) {
+                set.add(value.substring(2, value.length - 1))
+            }
+        }
+        val users = session.users.filter { set.contains(it.id) }.toSet()
+        val filter: (SlackMessagePosted) -> Boolean = if (users.isNotEmpty()) {
+            { users.contains(it.sender) }
+        } else {
+            { true }
+        }
         if (tokens.contains("today") || tokens.contains("сегодня")) {
             return HistoryToImageCommand(posted, minWordSize) {
-                historyGetter.fetchHistoryOfChannel(posted.channel.id, LocalDate.now()).query()
+                historyGetter.fetchHistoryOfChannel(posted.channel.id, LocalDate.now()).query(filter)
             }
         }
         // default command
         return HistoryToImageCommand(posted, minWordSize) {
-            historyGetter.fetchHistoryOfChannel(posted.channel.id, 1000).query()
+            historyGetter.fetchHistoryOfChannel(posted.channel.id, 1000).query(filter)
         }
     }
 
-    fun List<SlackMessagePosted>.query(): StringBuilder {
+    fun List<SlackMessagePosted>.query(filter: (SlackMessagePosted) -> Boolean): StringBuilder {
         logger.info("Finished fetching history")
         val text = fold(StringBuilder()) { sb, msg ->
-            sb.append(' ').append(removeMention(msg))
+            if (filter(msg)) {
+                sb.append(' ').append(removeMention(msg))
+            } else {
+                sb
+            }
         }
         return text
     }
@@ -121,7 +139,7 @@ class TypingEventComand(val source: SlackMessagePosted) : BotCommand {
 fun main(args: Array<String>) {
     Wobot(System.getProperty("bot.token"), lang(System.getProperty("bot.cloud.lang", "en"))).apply {
         session.addMessagePostedListener { posted, session ->
-            if (posted.messageContent.startsWith(me)) {
+            if (posted.messageContent?.startsWith(me) ?: false) {
                 Wobot.logger.info("Start processing message: ${posted.timestamp}")
                 parseCommand(posted)(this)
             }
