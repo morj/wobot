@@ -154,7 +154,7 @@ fun wc(language: Language, minWordSize: Int, input: List<String>): WordCloud {
         }
         setWordFrequenciesToReturn(160)
         setMinWordLength(minWordSize)
-        setStopWords(listOf("this"))
+        setStopWords(listOf("not", "for", "and", "the", "you", "this", "что", "это"))
     }
     val wordFrequencies = frequencyAnalyzer.load(input)
     val dimension = Dimension(1247, 732)
