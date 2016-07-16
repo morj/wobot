@@ -36,8 +36,12 @@ class Wobot(val token: String, val language: Language) {
         me = "<@$id>"
     }
 
-    fun parseCommand(posted: SlackMessagePosted): BotCommand {
-        val msg = posted.messageContent.substring(startIndex = me.length)
+    fun parseCommand(posted: SlackMessagePosted, dm: Boolean): BotCommand {
+        val msg = if (dm) {
+            posted.messageContent
+        } else {
+            posted.messageContent.substring(startIndex = me.length)
+        }
         logger.debug(msg)
         // session.sendMessage(posted.channel, "Morj wrote: \n> ${posted.messageContent}", null)
         val tokens = language.wordTokenizer.tokenize(msg).filter { it.length > 2 }.toSet()
@@ -139,9 +143,10 @@ class TypingEventComand(val source: SlackMessagePosted) : BotCommand {
 fun main(args: Array<String>) {
     Wobot(System.getProperty("bot.token"), lang(System.getProperty("bot.cloud.lang", "en"))).apply {
         session.addMessagePostedListener { posted, session ->
-            if (posted.messageContent?.startsWith(me) ?: false) {
+            val dm = posted.channel.isDirect && posted.sender.id != id
+            if (dm || posted.messageContent?.startsWith(me) ?: false) {
                 Wobot.logger.info("Start processing message: ${posted.timestamp}")
-                parseCommand(posted)(this)
+                parseCommand(posted, dm)(this)
             }
         }
     }
