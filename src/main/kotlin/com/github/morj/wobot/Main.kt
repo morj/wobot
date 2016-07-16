@@ -36,11 +36,11 @@ class Wobot(val token: String, val language: Language) {
         me = "<@$id>"
     }
 
-    fun parseCommand(posted: SlackMessagePosted, dm: Boolean): BotCommand {
-        val msg = if (dm) {
-            posted.messageContent
-        } else {
+    fun parseCommand(posted: SlackMessagePosted, mentionsMe: Boolean): BotCommand {
+        val msg = if (mentionsMe) {
             posted.messageContent.substring(startIndex = me.length)
+        } else {
+            posted.messageContent
         }
         logger.debug(msg)
         // session.sendMessage(posted.channel, "Morj wrote: \n> ${posted.messageContent}", null)
@@ -144,9 +144,10 @@ fun main(args: Array<String>) {
     Wobot(System.getProperty("bot.token"), lang(System.getProperty("bot.cloud.lang", "en"))).apply {
         session.addMessagePostedListener { posted, session ->
             val dm = posted.channel.isDirect && posted.sender.id != id
-            if (dm || posted.messageContent?.startsWith(me) ?: false) {
+            val mentionsMe = posted.messageContent?.startsWith(me) ?: false
+            if (dm || mentionsMe) {
                 Wobot.logger.info("Start processing message: ${posted.timestamp}")
-                parseCommand(posted, dm)(this)
+                parseCommand(posted, mentionsMe)(this)
             }
         }
     }
