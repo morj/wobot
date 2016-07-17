@@ -6,6 +6,7 @@ import com.kennycason.kumo.font.KumoFont
 import com.kennycason.kumo.image.AngleGenerator
 import com.kennycason.kumo.nlp.FrequencyAnalyzer
 import com.kennycason.kumo.palette.ColorPalette
+import com.ullink.slack.simpleslackapi.SlackUser
 import com.ullink.slack.simpleslackapi.events.SlackMessagePosted
 import com.ullink.slack.simpleslackapi.impl.ChannelHistoryModuleFactory
 import com.ullink.slack.simpleslackapi.impl.SlackSessionFactory
@@ -44,25 +45,13 @@ class Wobot(val token: String, val language: Language) {
         }
         logger.debug(msg)
         // session.sendMessage(posted.channel, "Morj wrote: \n> ${posted.messageContent}", null)
-        val tokens = language.wordTokenizer.tokenize(msg).filter { it.length > 2 }.toSet()
-        if (logger.isDebugEnabled) {
-            logger.debug(tokens.fold(StringBuilder("Normalized command:")) { sb, s ->
-                sb.append(' ').append(s)
-            }.toString())
-        }
+        val tokens = tokens(msg)
         val minWordSize = if (tokens.contains("longer") || tokens.contains("пространно")) {
             4
         } else {
             3
         }
-        val set = hashSetOf<String>()
-        mention.find(msg)?.groups?.forEach {
-            val value = it?.value // TODO: use pre/post match in regex instead
-            if (value != null && value.startsWith("<@") && value.endsWith(">")) {
-                set.add(value.substring(2, value.length - 1))
-            }
-        }
-        val users = session.users.filter { set.contains(it.id) }.toSet()
+        val users = users(msg)
         val filter: (SlackMessagePosted) -> Boolean = if (users.isNotEmpty()) {
             { users.contains(it.sender) }
         } else {
@@ -77,6 +66,27 @@ class Wobot(val token: String, val language: Language) {
         return HistoryToImageCommand(posted, minWordSize) {
             historyGetter.fetchHistoryOfChannel(posted.channel.id, 1000).query(filter)
         }
+    }
+
+    fun tokens(msg: String): Set<String> {
+        val tokens = language.wordTokenizer.tokenize(msg).filter { it.length > 2 }.toSet()
+        if (logger.isDebugEnabled) {
+            logger.debug(tokens.fold(StringBuilder("Normalized command:")) { sb, s ->
+                sb.append(' ').append(s)
+            }.toString())
+        }
+        return tokens
+    }
+
+    fun users(msg: String): Set<SlackUser> {
+        val mentionedIds = hashSetOf<String>()
+        mention.find(msg)?.groups?.forEach {
+            val value = it?.value // TODO: use pre/post match in regex instead
+            if (value != null && value.startsWith("<@") && value.endsWith(">")) {
+                mentionedIds.add(value.substring(2, value.length - 1))
+            }
+        }
+        return session.users.filter { mentionedIds.contains(it.id) }.toSet()
     }
 
     fun List<SlackMessagePosted>.query(filter: (SlackMessagePosted) -> Boolean): StringBuilder {
