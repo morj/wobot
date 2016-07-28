@@ -29,12 +29,14 @@ configure<ApplicationPluginConvention> {
 
 repositories {
     maven { setUrl(extra["repo"]) }
+    maven { setUrl("https://jitpack.io") }
 }
 
 dependencies {
     compile("org.jetbrains.kotlin:kotlin-stdlib:${extra["kotlinVersion"]}")
     compile("com.kennycason:kumo:${extra["kumoVersion"]}")
-    compile("com.ullink.slack:simpleslackapi:0.5.1")
+    // compile("com.ullink.slack:simpleslackapi:0.5.1")
+    compile("com.github.morj:simple-slack-api:c97584f453")
     compile("org.apache.httpcomponents:httpmime:4.4")
     compile("org.languagetool:language-ru:2.5")
 }
