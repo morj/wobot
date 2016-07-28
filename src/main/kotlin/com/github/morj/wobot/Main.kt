@@ -22,14 +22,15 @@ import java.io.PipedOutputStream
 class Wobot(val token: String, val language: Language) {
     companion object {
         val logger = LoggerFactory.getLogger(Wobot::class.java)
+        val matchSpecial = Regex("(<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>)|(@channel)|(@group)|(@here)|(@everyone)|(&lt;)|(&gt;)|(&amp;)")
+        val matchMention = Regex("<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>")
+        val matchChannel = Regex("<#([A-Z0-9])+(\\|([a-z0-9]){0,21})?>")
     }
 
     val session = SlackSessionFactory.createWebSocketSlackSession(token)
     val historyGetter = ChannelHistoryModuleFactory.createChannelHistoryModule(session)
     val id: String
     val me: String
-    val special = Regex("(<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>)|(@channel)|(@group)|(@here)|(@everyone)|(&lt;)|(&gt;)|(&amp;)")
-    val mention = Regex("<@([A-Z0-9])+(\\|([a-z0-9]){0,21})?>")
 
     init {
         session.connect()
@@ -44,7 +45,9 @@ class Wobot(val token: String, val language: Language) {
             posted.messageContent
         }
         logger.debug(msg)
-        // session.sendMessage(posted.channel, "Morj wrote: \n> ${posted.messageContent}", null)
+        val id = matchChannel.find(msg)?.let {
+            it.value.substring(2, it.value.length - 1)
+        }
         val tokens = tokens(msg)
         val minWordSize = if (tokens.contains("longer") || tokens.contains("пространно")) {
             4
@@ -58,14 +61,27 @@ class Wobot(val token: String, val language: Language) {
             { true }
         }
         if (tokens.contains("today") || tokens.contains("сегодня")) {
-            return HistoryToImageCommand(posted, minWordSize) {
-                historyGetter.fetchHistoryOfChannel(posted.channel.id, LocalDate.now()).query(filter)
+            return secure(posted, id) {
+                HistoryToImageCommand(posted, minWordSize) {
+                    historyGetter.fetchHistoryOfChannel(id ?: posted.channel.id, LocalDate.now()).query(filter)
+                }
             }
         }
         // default command
-        return HistoryToImageCommand(posted, minWordSize) {
-            historyGetter.fetchHistoryOfChannel(posted.channel.id, 1000).query(filter)
+        return secure(posted, id) {
+            HistoryToImageCommand(posted, minWordSize) {
+                historyGetter.fetchHistoryOfChannel(id ?: posted.channel.id, 1000).query(filter)
+            }
         }
+    }
+
+    fun secure(posted: SlackMessagePosted, channelId: String?, action: () -> BotCommand): BotCommand {
+        session.channels.find { it.id == channelId }?.let {
+            if (!it.members.contains(posted.sender)) {
+                return MessageCommand(posted, "You are not a member of #${it.name} ¯\\_(ツ)_/¯")
+            }
+        }
+        return action()
     }
 
     fun tokens(msg: String): Set<String> {
@@ -80,7 +96,7 @@ class Wobot(val token: String, val language: Language) {
 
     fun users(msg: String): Set<SlackUser> {
         val mentionedIds = hashSetOf<String>()
-        mention.find(msg)?.groups?.forEach {
+        matchMention.find(msg)?.groups?.forEach {
             val value = it?.value // TODO: use pre/post match in regex instead
             if (value != null && value.startsWith("<@") && value.endsWith(">")) {
                 mentionedIds.add(value.substring(2, value.length - 1))
@@ -102,18 +118,29 @@ class Wobot(val token: String, val language: Language) {
     }
 
     fun removeMention(msg: SlackMessagePosted): String {
-        return msg.messageContent.replace(special, "")
+        return msg.messageContent.replace(matchSpecial, "")
     }
 }
 
 interface BotCommand {
     enum class Type {
+        SYSTEM,
         HISTORY_TO_IMAGE,
         MISC
     }
 
     val type: Type
     operator fun invoke(wobot: Wobot)
+}
+
+class MessageCommand(val source: SlackMessagePosted, val msg: String) : BotCommand {
+
+    override val type: BotCommand.Type
+        get() = BotCommand.Type.SYSTEM
+
+    override fun invoke(wobot: Wobot) {
+        wobot.session.sendMessage(source.channel, msg)
+    }
 }
 
 class HistoryToImageCommand(val source: SlackMessagePosted, val minWordSize: Int, val action: () -> Any) : BotCommand {
