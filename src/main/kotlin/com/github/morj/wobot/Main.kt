@@ -6,6 +6,7 @@ import com.kennycason.kumo.font.KumoFont
 import com.kennycason.kumo.image.AngleGenerator
 import com.kennycason.kumo.nlp.FrequencyAnalyzer
 import com.kennycason.kumo.palette.ColorPalette
+import com.ullink.slack.simpleslackapi.SlackChannel
 import com.ullink.slack.simpleslackapi.SlackUser
 import com.ullink.slack.simpleslackapi.events.SlackMessagePosted
 import com.ullink.slack.simpleslackapi.impl.ChannelHistoryModuleFactory
@@ -77,7 +78,7 @@ class Wobot(val token: String, val language: Language) {
 
     fun secure(posted: SlackMessagePosted, channelId: String?, action: () -> BotCommand): BotCommand {
         session.channels.find { it.id == channelId }?.let {
-            if (!it.members.contains(posted.sender)) {
+            if (it.type != SlackChannel.SlackChannelType.PUBLIC_CHANNEL && !it.members.contains(posted.sender)) {
                 return MessageCommand(posted, "You are not a member of #${it.name} ¯\\_(ツ)_/¯")
             }
         }
